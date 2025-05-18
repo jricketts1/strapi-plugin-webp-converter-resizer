@@ -9,7 +9,8 @@ const DEFAULT_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 
 export default ({ config }, { strapi }: { strapi: Core.Service }) => {
   const IMAGE_TYPES = config('mimeTypes', DEFAULT_IMAGE_TYPES);
-  const SHARP_OPTIONS = config('options');
+  const SHARP_WEBP_OPTIONS = config('options').webp;
+  const MAX_IMAGE_WIDTH = config('options').maxWidth;
 
   return async (ctx: Context, next: Next) => {
     const isUpload =
@@ -27,11 +28,11 @@ export default ({ config }, { strapi }: { strapi: Core.Service }) => {
 
         if (Array.isArray(fileOrFiles)) {
           for (const file of fileOrFiles) {
-            await processFile(file, ctx, IMAGE_TYPES, SHARP_OPTIONS, strapi);
+            await processFile(file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE_WIDTH, strapi);
           }
         } else {
           const file = fileOrFiles as File;
-          await processFile(file, ctx, IMAGE_TYPES, SHARP_OPTIONS, strapi);
+          await processFile(file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE_WIDTH, strapi);
         }
       }
     }
@@ -44,7 +45,8 @@ const processFile = async (
   file: File,
   ctx: Context,
   IMAGE_TYPES: string[],
-  SHARP_OPTIONS: WebpOptions,
+  SHARP_WEBP_OPTIONS: WebpOptions,
+  MAX_IMAGE_WIDTH: number,
   strapi: Core.Service
 ) => {
   const filePath = file.filepath;
@@ -57,7 +59,19 @@ const processFile = async (
     ctx.request.body.fileInfo = JSON.stringify(fileInfo);
 
     try {
-      const sharpResult = await sharp(filePath).webp(SHARP_OPTIONS).toFile(webpFilePath);
+      // Read the image and get its metadata
+      const image = sharp(filePath);
+      const metadata = await image.metadata();
+
+      let pipeline = image;
+      // Only resize if width is greater than 2000px
+      if (metadata.width && metadata.width > MAX_IMAGE_WIDTH) {
+        pipeline = pipeline.resize({ width: MAX_IMAGE_WIDTH }); // height auto, aspect ratio preserved[3][4][6]
+      }
+
+      // Convert to webp with options
+      const sharpResult = await pipeline.webp(SHARP_WEBP_OPTIONS).toFile(webpFilePath);
+
       await fs.unlink(filePath);
 
       file.size = sharpResult.size;
