@@ -7,7 +7,8 @@ const sharp__default = /* @__PURE__ */ _interopDefault(sharp);
 const DEFAULT_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg"];
 const convertToWebp = ({ config: config2 }, { strapi }) => {
   const IMAGE_TYPES = config2("mimeTypes", DEFAULT_IMAGE_TYPES);
-  const SHARP_OPTIONS = config2("options");
+  const SHARP_WEBP_OPTIONS = config2("options").webp;
+  const MAX_IMAGE_WIDTH = config2("options").maxWidth;
   return async (ctx, next) => {
     const isUpload = ctx.url === "/upload" && ctx.method === "POST" && ctx.request.files && ctx.request.body && ctx.request.body.fileInfo;
     if (isUpload) {
@@ -16,18 +17,18 @@ const convertToWebp = ({ config: config2 }, { strapi }) => {
         const fileOrFiles = files[key];
         if (Array.isArray(fileOrFiles)) {
           for (const file of fileOrFiles) {
-            await processFile(file, ctx, IMAGE_TYPES, SHARP_OPTIONS, strapi);
+            await processFile(file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE_WIDTH, strapi);
           }
         } else {
           const file = fileOrFiles;
-          await processFile(file, ctx, IMAGE_TYPES, SHARP_OPTIONS, strapi);
+          await processFile(file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE_WIDTH, strapi);
         }
       }
     }
     await next();
   };
 };
-const processFile = async (file, ctx, IMAGE_TYPES, SHARP_OPTIONS, strapi) => {
+const processFile = async (file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE_WIDTH, strapi) => {
   const filePath = file.filepath;
   if (IMAGE_TYPES.includes(file.mimetype)) {
     const webpFileName = `${path.parse(file.originalFilename).name}.webp`;
@@ -36,7 +37,13 @@ const processFile = async (file, ctx, IMAGE_TYPES, SHARP_OPTIONS, strapi) => {
     fileInfo.name = webpFileName;
     ctx.request.body.fileInfo = JSON.stringify(fileInfo);
     try {
-      const sharpResult = await sharp__default.default(filePath).webp(SHARP_OPTIONS).toFile(webpFilePath);
+      const image = sharp__default.default(filePath);
+      const metadata = await image.metadata();
+      let pipeline = image;
+      if (metadata.width && metadata.width > MAX_IMAGE_WIDTH) {
+        pipeline = pipeline.resize({ width: MAX_IMAGE_WIDTH });
+      }
+      const sharpResult = await pipeline.webp(SHARP_WEBP_OPTIONS).toFile(webpFilePath);
       await fs.promises.unlink(filePath);
       file.size = sharpResult.size;
       file.filepath = webpFilePath;
