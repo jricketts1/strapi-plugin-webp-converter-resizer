@@ -40,7 +40,7 @@ const processFile = async (file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE
       if (metadata.width && metadata.width > MAX_IMAGE_WIDTH) {
         pipeline = pipeline.resize({ width: MAX_IMAGE_WIDTH });
       }
-      const sharpResult = await pipeline.webp(SHARP_WEBP_OPTIONS).toFile(webpFilePath);
+      const sharpResult = await pipeline.rotate().webp(SHARP_WEBP_OPTIONS).toFile(webpFilePath);
       await promises.unlink(filePath);
       file.size = sharpResult.size;
       file.filepath = webpFilePath;

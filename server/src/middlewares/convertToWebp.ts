@@ -70,7 +70,7 @@ const processFile = async (
       }
 
       // Convert to webp with options
-      const sharpResult = await pipeline.webp(SHARP_WEBP_OPTIONS).toFile(webpFilePath);
+      const sharpResult = await pipeline.rotate().webp(SHARP_WEBP_OPTIONS).toFile(webpFilePath);
 
       await fs.unlink(filePath);
 
