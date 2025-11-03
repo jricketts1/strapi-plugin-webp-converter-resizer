@@ -3,6 +3,18 @@ import { Context, Next } from 'koa';
 import sharp, { WebpOptions } from 'sharp';
 import { promises as fs } from 'fs';
 import { parse, join, dirname } from 'path';
+
+const generateAltText = (filename: string): string => {
+  // Remove file extension and split by common separators
+  const nameWithoutExt = parse(filename).name;
+  // Replace common separators with spaces and clean up the string
+  return nameWithoutExt
+    .replace(/[_-]/g, ' ') // Replace underscores and hyphens with spaces
+    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+    .trim() // Remove leading/trailing spaces
+    .toLowerCase() // Convert to lowercase
+    .replace(/^\w/, (c) => c.toUpperCase()); // Capitalize first letter
+};
 import { Files, File } from 'formidable';
 
 const DEFAULT_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
@@ -11,6 +23,7 @@ export default ({ config }, { strapi }: { strapi: Core.Service }) => {
   const IMAGE_TYPES = config('mimeTypes', DEFAULT_IMAGE_TYPES);
   const SHARP_WEBP_OPTIONS = config('options').webp;
   const MAX_IMAGE_WIDTH = config('options').maxWidth;
+  const AUTO_ALT_TEXT = config('options').autoAltText;
 
   return async (ctx: Context, next: Next) => {
     const isUpload =
@@ -28,11 +41,27 @@ export default ({ config }, { strapi }: { strapi: Core.Service }) => {
 
         if (Array.isArray(fileOrFiles)) {
           for (const file of fileOrFiles) {
-            await processFile(file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE_WIDTH, strapi);
+            await processFile(
+              file,
+              ctx,
+              IMAGE_TYPES,
+              SHARP_WEBP_OPTIONS,
+              MAX_IMAGE_WIDTH,
+              AUTO_ALT_TEXT,
+              strapi
+            );
           }
         } else {
           const file = fileOrFiles as File;
-          await processFile(file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE_WIDTH, strapi);
+          await processFile(
+            file,
+            ctx,
+            IMAGE_TYPES,
+            SHARP_WEBP_OPTIONS,
+            MAX_IMAGE_WIDTH,
+            AUTO_ALT_TEXT,
+            strapi
+          );
         }
       }
     }
@@ -47,6 +76,7 @@ const processFile = async (
   IMAGE_TYPES: string[],
   SHARP_WEBP_OPTIONS: WebpOptions,
   MAX_IMAGE_WIDTH: number,
+  AUTO_ALT_TEXT: boolean,
   strapi: Core.Service
 ) => {
   const filePath = file.filepath;
@@ -78,6 +108,12 @@ const processFile = async (
       file.filepath = webpFilePath;
       file.originalFilename = webpFileName;
       file.mimetype = 'image/webp';
+
+      // Generate and add alt text if not already provided
+      if (!fileInfo.alternativeText && AUTO_ALT_TEXT) {
+        fileInfo.alternativeText = generateAltText(webpFileName);
+        ctx.request.body.fileInfo = JSON.stringify(fileInfo);
+      }
     } catch (error) {
       strapi.log.error(
         `Plugin (strapi-plugin-webp-converter): Image Converter Middleware: Error converting ${file.originalFilename} to webp:`,
