@@ -4,11 +4,16 @@ const fs = require("fs");
 const path = require("path");
 const _interopDefault = (e) => e && e.__esModule ? e : { default: e };
 const sharp__default = /* @__PURE__ */ _interopDefault(sharp);
+const generateAltText = (filename) => {
+  const nameWithoutExt = path.parse(filename).name;
+  return nameWithoutExt.replace(/[_-]/g, " ").replace(/\s+/g, " ").trim().toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
+};
 const DEFAULT_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg"];
 const convertToWebp = ({ config: config2 }, { strapi }) => {
   const IMAGE_TYPES = config2("mimeTypes", DEFAULT_IMAGE_TYPES);
   const SHARP_WEBP_OPTIONS = config2("options").webp;
   const MAX_IMAGE_WIDTH = config2("options").maxWidth;
+  const AUTO_ALT_TEXT = config2("options").autoAltText;
   return async (ctx, next) => {
     const isUpload = ctx.url === "/upload" && ctx.method === "POST" && ctx.request.files && ctx.request.body && ctx.request.body.fileInfo;
     if (isUpload) {
@@ -17,19 +22,36 @@ const convertToWebp = ({ config: config2 }, { strapi }) => {
         const fileOrFiles = files[key];
         if (Array.isArray(fileOrFiles)) {
           for (const file of fileOrFiles) {
-            await processFile(file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE_WIDTH, strapi);
+            await processFile(
+              file,
+              ctx,
+              IMAGE_TYPES,
+              SHARP_WEBP_OPTIONS,
+              MAX_IMAGE_WIDTH,
+              AUTO_ALT_TEXT,
+              strapi
+            );
           }
         } else {
           const file = fileOrFiles;
-          await processFile(file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE_WIDTH, strapi);
+          await processFile(
+            file,
+            ctx,
+            IMAGE_TYPES,
+            SHARP_WEBP_OPTIONS,
+            MAX_IMAGE_WIDTH,
+            AUTO_ALT_TEXT,
+            strapi
+          );
         }
       }
     }
     await next();
   };
 };
-const processFile = async (file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE_WIDTH, strapi) => {
+const processFile = async (file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE_WIDTH, AUTO_ALT_TEXT, strapi) => {
   const filePath = file.filepath;
+  console.log("auto alt text", AUTO_ALT_TEXT);
   if (IMAGE_TYPES.includes(file.mimetype)) {
     const webpFileName = `${path.parse(file.originalFilename).name}.webp`;
     const webpFilePath = path.join(path.dirname(filePath), webpFileName);
@@ -49,6 +71,13 @@ const processFile = async (file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE
       file.filepath = webpFilePath;
       file.originalFilename = webpFileName;
       file.mimetype = "image/webp";
+      if (!fileInfo.alternativeText && AUTO_ALT_TEXT) {
+        console.log("Generating alt text");
+        fileInfo.alternativeText = generateAltText(webpFileName);
+        console.log("Generated alt text", fileInfo.alternativeText);
+        ctx.request.body.fileInfo = JSON.stringify(fileInfo);
+        console.log("Updated file info", ctx.request.body.fileInfo);
+      }
     } catch (error) {
       strapi.log.error(
         `Plugin (strapi-plugin-webp-converter): Image Converter Middleware: Error converting ${file.originalFilename} to webp:`,
