@@ -51,7 +51,6 @@ const convertToWebp = ({ config: config2 }, { strapi }) => {
 };
 const processFile = async (file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE_WIDTH, AUTO_ALT_TEXT, strapi) => {
   const filePath = file.filepath;
-  console.log("auto alt text", AUTO_ALT_TEXT);
   if (IMAGE_TYPES.includes(file.mimetype)) {
     const webpFileName = `${path.parse(file.originalFilename).name}.webp`;
     const webpFilePath = path.join(path.dirname(filePath), webpFileName);
@@ -72,11 +71,8 @@ const processFile = async (file, ctx, IMAGE_TYPES, SHARP_WEBP_OPTIONS, MAX_IMAGE
       file.originalFilename = webpFileName;
       file.mimetype = "image/webp";
       if (!fileInfo.alternativeText && AUTO_ALT_TEXT) {
-        console.log("Generating alt text");
         fileInfo.alternativeText = generateAltText(webpFileName);
-        console.log("Generated alt text", fileInfo.alternativeText);
         ctx.request.body.fileInfo = JSON.stringify(fileInfo);
-        console.log("Updated file info", ctx.request.body.fileInfo);
       }
     } catch (error) {
       strapi.log.error(
