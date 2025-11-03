@@ -81,6 +81,8 @@ const processFile = async (
 ) => {
   const filePath = file.filepath;
 
+  console.log('auto alt text', AUTO_ALT_TEXT);
+
   if (IMAGE_TYPES.includes(file.mimetype)) {
     const webpFileName = `${parse(file.originalFilename).name}.webp`;
     const webpFilePath = join(dirname(filePath), webpFileName);
@@ -111,8 +113,11 @@ const processFile = async (
 
       // Generate and add alt text if not already provided
       if (!fileInfo.alternativeText && AUTO_ALT_TEXT) {
+        console.log('Generating alt text');
         fileInfo.alternativeText = generateAltText(webpFileName);
+        console.log('Generated alt text', fileInfo.alternativeText);
         ctx.request.body.fileInfo = JSON.stringify(fileInfo);
+        console.log('Updated file info', ctx.request.body.fileInfo);
       }
     } catch (error) {
       strapi.log.error(
